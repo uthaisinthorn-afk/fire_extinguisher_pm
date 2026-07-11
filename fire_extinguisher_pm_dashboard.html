@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบตรวจเช็คถังดับเพลิง - ตึกภูมิสิริมังคลานุสรณ์</title>
+<style>
+:root{
+  --bg:#151312;
+  --panel:#1f1c1a;
+  --panel2:#26221f;
+  --border:#3a332e;
+  --text:#f2ece4;
+  --text-dim:#a89f95;
+  --red:#c8402c;
+  --red-dim:#7a2c22;
+  --amber:#d69a2d;
+  --green:#22c55e;
+  --green-glow:rgba(34,197,94,0.75);
+  --amber-glow:rgba(214,154,45,0.7);
+  --red-glow:rgba(200,64,44,0.75);
+  --gray:#5a5450;
+  --accent:#e0521f;
+  --font-display:'Bai Jamjuree','Segoe UI',sans-serif;
+  --font-body:'Sarabun','Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+.app{max-width:1200px;margin:0 auto;padding:16px 16px 60px;}
+
+/* Header */
+.header{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:16px;padding:18px 20px;background:linear-gradient(135deg,#241f1c,#1a1716);
+  border:1px solid var(--border);border-radius:14px;margin-bottom:16px;
+  position:relative;overflow:hidden;
+}
+.header::before{
+  content:'';position:absolute;right:-40px;top:-40px;width:160px;height:160px;
+  background:radial-gradient(circle,var(--accent) 0%,transparent 70%);opacity:.15;
+}
+.header h1{
+  font-family:var(--font-display);font-size:20px;margin:0 0 4px;font-weight:700;
+  letter-spacing:.2px;
+}
+.header .sub{color:var(--text-dim);font-size:13px;margin:0;}
+.header .badge{
+  background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+  padding:4px 10px;border-radius:20px;letter-spacing:.5px;white-space:nowrap;
+}
+
+/* Summary cards */
+.summary{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;
+}
+@media(max-width:800px){.summary{grid-template-columns:repeat(2,1fr);}}
+.stat{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:14px 12px;text-align:center;cursor:pointer;transition:.15s;
+}
+.stat:hover{border-color:var(--accent);}
+.stat.active{border-color:var(--accent);background:var(--panel2);}
+.stat .num{font-family:var(--font-display);font-size:26px;font-weight:700;line-height:1;}
+.stat .lbl{font-size:11.5px;color:var(--text-dim);margin-top:6px;}
+.stat.total .num{color:var(--text);}
+.stat.ok .num{color:var(--green);text-shadow:0 0 12px var(--green-glow);}
+.stat.warn .num{color:var(--amber);}
+.stat.bad .num{color:var(--red);}
+.stat.pending .num{color:var(--gray);}
+
+/* Filters */
+.filters{
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;
+}
+.filters input[type=text]{
+  flex:1;min-width:160px;background:var(--panel);border:1px solid var(--border);
+  color:var(--text);padding:9px 12px;border-radius:9px;font-size:14px;font-family:var(--font-body);
+}
+.filters select{
+  background:var(--panel);border:1px solid var(--border);color:var(--text);
+  padding:9px 10px;border-radius:9px;font-size:13px;font-family:var(--font-body);
+}
+.filters input:focus,.filters select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.scan-btn{
+  display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;
+  padding:9px 14px;border-radius:9px;font-size:13.5px;font-weight:700;cursor:pointer;
+  font-family:var(--font-body);white-space:nowrap;
+}
+.scan-btn:active{opacity:.85;}
+
+.scan-overlay{
+  position:fixed;inset:0;background:#000;display:none;z-index:80;flex-direction:column;
+}
+.scan-overlay.show{display:flex;}
+.scan-top{
+  display:flex;justify-content:space-between;align-items:center;padding:14px 16px;
+  color:#fff;font-size:14px;background:rgba(0,0,0,.5);position:relative;z-index:2;
+}
+.scan-top button{background:none;border:none;color:#fff;font-size:26px;cursor:pointer;line-height:1;}
+#scanVideo{flex:1;width:100%;object-fit:cover;background:#000;}
+.scan-frame{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(70vw,280px);height:min(70vw,280px);border:3px solid var(--accent);border-radius:16px;
+  box-shadow:0 0 0 2000px rgba(0,0,0,.35);pointer-events:none;
+}
+.scan-hint{
+  position:absolute;bottom:30px;left:0;right:0;text-align:center;color:#fff;font-size:13px;
+  padding:0 20px;text-shadow:0 1px 3px rgba(0,0,0,.6);
+}
+
+/* Grid */
+.grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:9px;
+}
+.card{
+  background:linear-gradient(160deg, #221f2b, #191720);
+  border:1.5px solid var(--border);border-radius:12px;
+  padding:10px 12px;cursor:pointer;transition:.1s;
+  text-align:left;
+  --card-glow: 0 0 0 rgba(0,0,0,0);
+  box-shadow:
+    0 4px 0 rgba(0,0,0,.55),
+    0 6px 10px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.06),
+    var(--card-glow);
+}
+.cardRow{display:flex;align-items:flex-start;gap:8px;}
+.cicon{flex-shrink:0;line-height:0;margin-top:1px;}
+.cinfo{flex:1;min-width:0;}
+.card:hover{transform:translateY(-2px);
+  box-shadow:
+    0 6px 0 rgba(0,0,0,.55),
+    0 10px 14px rgba(0,0,0,.45),
+    inset 0 1px 0 rgba(255,255,255,.08),
+    var(--card-glow);
+}
+.card:active{
+  transform:translateY(3px);
+  box-shadow:
+    0 1px 0 rgba(0,0,0,.5),
+    0 2px 4px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.05),
+    var(--card-glow);
+}
+.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.card.status-ok{border-color:var(--green);
+  --card-glow:0 0 14px 1px var(--green-glow), inset 0 0 8px -2px var(--green-glow);}
+.card.status-warn{border-color:var(--amber);
+  --card-glow:0 0 14px 1px var(--amber-glow), inset 0 0 8px -2px var(--amber-glow);}
+.card.status-bad{border-color:var(--red);
+  --card-glow:0 0 14px 1px var(--red-glow), inset 0 0 8px -2px var(--red-glow);}
+.card.status-pending{border-color:var(--border);}
+.card .cid{font-family:var(--font-display);font-weight:700;font-size:14px;word-break:break-all;}
+.tswatch{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,.25);}
+.card .cloc{font-size:11.5px;color:var(--text-dim);margin-top:3px;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.card .cmeta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dot.status-ok{background:var(--green);box-shadow:0 0 0 3px var(--green-glow), 0 0 10px 2px var(--green-glow);animation:dotPulse 2s ease-in-out infinite;}
+.dot.status-warn{background:var(--amber);box-shadow:0 0 0 3px var(--amber-glow), 0 0 8px 2px var(--amber-glow);}
+.dot.status-bad{background:var(--red);box-shadow:0 0 0 3px var(--red-glow), 0 0 8px 2px var(--red-glow);}
+@keyframes dotPulse{
+  0%,100%{box-shadow:0 0 0 3px var(--green-glow), 0 0 10px 2px var(--green-glow);}
+  50%{box-shadow:0 0 0 5px transparent, 0 0 16px 5px var(--green-glow);}
+}
+.dot.status-pending{background:var(--gray);}
+.card .cdate{font-size:10.5px;color:var(--text-dim);}
+
+.empty{text-align:center;padding:60px 20px;color:var(--text-dim);}
+
+/* Modal */
+.overlay{
+  position:fixed;inset:0;background:rgba(10,8,7,.75);display:none;
+  align-items:flex-end;justify-content:center;z-index:50;
+}
+.overlay.show{display:flex;}
+@media(min-width:700px){.overlay{align-items:center;}}
+.modal{
+  background:var(--panel);border:1px solid var(--border);border-radius:16px 16px 0 0;
+  width:100%;max-width:560px;max-height:92vh;overflow-y:auto;padding:20px 20px 28px;
+  animation:slideup .18s ease-out;
+}
+@media(min-width:700px){.modal{border-radius:16px;}}
+@keyframes slideup{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal h2{font-family:var(--font-display);font-size:18px;margin:0 0 2px;}
+.modal .mloc{color:var(--text-dim);font-size:13px;margin-bottom:16px;}
+.mclose{
+  position:sticky;top:0;float:right;background:none;border:none;color:var(--text-dim);
+  font-size:22px;cursor:pointer;line-height:1;
+}
+.section-title{
+  font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);
+  margin:18px 0 8px;font-weight:700;
+}
+.checklist-item{
+  background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-bottom:8px;
+}
+
+.type-row{display:flex;gap:8px;margin-bottom:6px;}
+.type-card{
+  flex:1;background:var(--panel2);border:1.5px solid var(--border);border-radius:11px;
+  padding:10px 6px 8px;text-align:center;cursor:pointer;transition:.12s;
+}
+.type-card:hover{border-color:var(--accent);}
+.type-card.sel{border-color:var(--accent);background:#2e2620;}
+.type-card .ticon{display:flex;justify-content:center;margin-bottom:2px;}
+.type-card .tlabel{font-weight:700;font-size:12.5px;}
+.type-card .tsub{font-size:9.5px;color:var(--text-dim);margin-top:1px;line-height:1.2;}
+.type-note{font-size:12px;color:var(--text-dim);background:var(--panel2);border:1px solid var(--border);
+  border-radius:9px;padding:9px 11px;margin:8px 0 4px;}
+.type-placeholder{text-align:center;padding:16px 0;color:var(--text-dim);font-size:13px;}
+.checklist-item .qtext{font-size:13.5px;margin-bottom:8px;}
+.opts{display:flex;gap:6px;flex-wrap:wrap;}
+.opt{
+  flex:1;min-width:70px;text-align:center;padding:7px 6px;border-radius:8px;
+  border:1px solid var(--border);font-size:12.5px;cursor:pointer;color:var(--text-dim);
+  background:var(--panel);transition:.1s;user-select:none;
+}
+.opt.sel-ok{background:var(--green);color:#fff;border-color:var(--green);}
+.opt.sel-warn{background:var(--amber);color:#241c08;border-color:var(--amber);}
+.opt.sel-bad{background:var(--red);color:#fff;border-color:var(--red);}
+
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;}
+.field input[type=text],.field textarea{
+  width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  padding:9px 11px;border-radius:9px;font-size:14px;font-family:var(--font-body);resize:vertical;
+}
+
+.photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.photo-thumb{position:relative;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--border);}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;}
+.photo-thumb .rm{
+  position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;
+  width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1;
+}
+.photo-add{
+  width:72px;height:72px;border-radius:9px;border:1px dashed var(--border);
+  display:flex;align-items:center;justify-content:center;color:var(--text-dim);
+  font-size:22px;cursor:pointer;background:var(--panel2);
+}
+
+.history{font-size:12.5px;color:var(--text-dim);}
+.hitem{padding:8px 0;border-bottom:1px solid var(--border);}
+.hitem:last-child{border-bottom:none;}
+.hitem .htop{display:flex;justify-content:space-between;color:var(--text);font-weight:600;}
+
+.submit-btn{
+  width:100%;background:var(--accent);color:#fff;border:none;padding:13px;
+  border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:16px;
+  font-family:var(--font-body);
+}
+.submit-btn:active{opacity:.85;}
+.submit-btn:disabled{opacity:.5;}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:#2d3d2f;color:#fff;padding:11px 20px;border-radius:10px;font-size:13.5px;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);z-index:100;opacity:0;transition:.25s;pointer-events:none;
+  border:1px solid var(--green);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+.loading{text-align:center;padding:40px;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header">
+    <div>
+      <h1>ระบบตรวจเช็คถังดับเพลิง</h1>
+      <p class="sub">ตึกภูมิสิริมังคลานุสรณ์ · Fire Extinguisher PM Dashboard</p>
+    </div>
+    <span class="badge">FAF · FEX</span>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="filters">
+    <input type="text" id="searchBox" placeholder="ค้นหาเลขอุปกรณ์ / สถานที่...">
+    <select id="buildingFilter"><option value="">ทุกอาคาร</option></select>
+    <select id="floorFilter"><option value="">ทุกชั้น</option></select>
+    <button class="scan-btn" id="btnScan" title="สแกน QR Code">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4a1 1 0 0 1 1-1h3M3 17v3a1 1 0 0 0 1 1h3M21 7V4a1 1 0 0 0-1-1h-3M21 17v3a1 1 0 0 1-1 1h-3M7 12h10"/></svg>
+      สแกน QR
+    </button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyMsg" style="display:none;">ไม่พบรายการที่ตรงกับการค้นหา</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="scan-overlay" id="scanOverlay">
+  <div class="scan-top">
+    <span>สแกน QR Code บนถังดับเพลิง</span>
+    <button id="btnScanClose">&times;</button>
+  </div>
+  <video id="scanVideo" autoplay playsinline muted></video>
+  <div class="scan-frame"></div>
+  <canvas id="scanCanvas" style="display:none;"></canvas>
+  <div class="scan-hint" id="scanHint">เล็งกล้องไปที่ QR Code บนถังดับเพลิง</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+
+<script>
+const FEX_DATA = [["1FX-B4/1", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/2", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/3", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/4", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/5", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/6", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/7", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/8", "PC", "B4", "ส่วนกลาง"], ["1FX-B4/9", "PC", "B4", "ส่วนกลาง"], ["1-B4-FX-HA01", "PC", "B4", "ห้องMedical Gas"], ["1-B4-FX-HA04", "PC", "B4", "ห้องเก็บออกซิเจน"], ["1-B4-FX-HA06", "PC", "B4", "หน้าห้องเก็บออกซิเจน"], ["1FX-B3/1", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/2", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/3", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/4", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/5", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/6", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/7", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/8", "PC", "B3", "ส่วนกลาง"], ["1FX-B3/9", "PC", "B3", "ส่วนกลาง"], ["1-B3-FX-HA03", "PC", "B3", "ห้องควบคุมระบบชิลเลอร์"], ["1FX-B2/1", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/2", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/3", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/4", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/5", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/6", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/7", "PC", "B2", "ส่วนกลาง"], ["1FX-B2/8", "PC", "B2", "ส่วนกลาง"], ["1-B2-FX-HA01", "PC", "B2", "ข้างบันหนีไฟ 1"], ["1-B2-FX-HA02", "PC", "B2", "ข้างบันหนีไฟ 1"], ["1-B2-FX-HA04", "PC", "B2", "ลานจอดรถ"], ["1-B2-FX-HA05", "PC", "B2", "ลานจอดรถ"], ["1-B2-FX-HA06", "PC", "B2", "ลานจอดรถ"], ["1-B2-FX-HA07", "PC", "B2", "ลานจอดรถ"], ["1-B2-FX-HA08", "PC", "B2", "ห้องพลขับ"], ["1-B2-FX-HA10", "PC", "B2", "ห้องพลขับ"], ["1-B2-FX-HA11", "PC", "B2", "ห้องพลขับ"], ["1FX-B1/1", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/10", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/11", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/12", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/13", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/14", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/15", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/16", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/17", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/18", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/19", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/2", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/3", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/4", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/5", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/6", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/7", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/8", "PC", "B1", "ส่วนกลาง"], ["1FX-B1/9", "PC", "B1", "ส่วนกลาง"], ["2-B1-FX/HA01", "PC", "B1", "ส่วนกลาง"], ["2-B1-FX/HA02", "PC", "B1", "ส่วนกลาง"], ["1-B1-FX/HA01", "PC", "B1", "ทางเข้าIPD"], ["1-B1-FX/HA02", "PC", "B1", "ห้องBAS"], ["1-B1-FX/HA03", "PC", "B1", "ห้องBAS"], ["1-B1-FX-HA04", "PC", "B1", "หน้าบันได10"], ["1-B1-FX/HA05", "PC", "B1", "ส่วนกลาง"], ["1-B1-FX/HA06", "PC", "B1", "TSSU"], ["1-B1-FX/HA07", "PC", "B1", "ห้องMDB"], ["1-B1-FX/HA08", "PC", "B1", "ห้องMDB"], ["1-B1-FX/HA09", "PC", "B1", "TSSU"], ["1-B1-FX/HA10", "PC", "B1", "TSSU"], ["1-B1-FX/HA11", "PC", "B1", "TSSU"], ["1-B1-FX/HA12", "PC", "B1", "หน้าห้องปรับอากาศ1"], ["1-B1-FX/HA13", "PC", "B1", "ทางเดินส่งของ"], ["1-B1-FX/HA14", "PC", "B1", "ทางเดินคลังยา"], ["1-1-FX-HA-01", "PC", "1", "ส่วนกลาง"], ["1-1-FX-HA-02", "PC", "1", "ส่วนกลาง"], ["1-1-FX-HA-03", "PC", "1", "ส่วนกลาง"], ["1-1-FX-HA-04", "PC", "1", "ส่วนกลาง"], ["1FX-1/1", "PC", "1", "ส่วนกลาง"], ["1FX-1/10", "PC", "1", "ส่วนกลาง"], ["1FX-1/11", "PC", "1", "ส่วนกลาง"], ["1FX-1/12", "PC", "1", "ส่วนกลาง"], ["1FX-1/13", "PC", "1", "ส่วนกลาง"], ["1FX-1/14", "PC", "1", "ส่วนกลาง"], ["1FX-1/15", "PC", "1", "ส่วนกลาง"], ["1FX-1/16", "PC", "1", "ส่วนกลาง"], ["1FX-1/17", "PC", "1", "ส่วนกลาง"], ["1FX-1/18", "PC", "1", "ส่วนกลาง"], ["1FX-1/2", "PC", "1", "ส่วนกลาง"], ["1FX-1/3", "PC", "1", "ส่วนกลาง"], ["1FX-1/4", "PC", "1", "ส่วนกลาง"], ["1FX-1/5", "PC", "1", "ส่วนกลาง"], ["1FX-1/6", "PC", "1", "ส่วนกลาง"], ["1FX-1/7", "PC", "1", "ส่วนกลาง"], ["1FX-1/8", "PC", "1", "ส่วนกลาง"], ["1FX-1/9", "PC", "1", "ส่วนกลาง"], ["2-1-FX-HA-01", "EC Zone C", "1", "ส่วนกลาง"], ["2-1-FX-HA-02", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/1", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/2", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/3", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/4", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/5", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/6", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/7", "EC Zone C", "1", "ส่วนกลาง"], ["2FX-1/8", "EC Zone C", "1", "ส่วนกลาง"], ["1FX-M/1", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/10", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/11", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/12", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/13", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/14", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/15", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/2", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/3", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/4", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/5", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/6", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/7", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/8", "PC", "MZ", "ส่วนกลาง"], ["1FX-M/9", "PC", "MZ", "ส่วนกลาง"], ["2FX-M/1", "EC Zone C", "MZ", "ส่วนกลาง"], ["2FX-M/2", "EC Zone C", "MZ", "ส่วนกลาง"], ["2FX-M/3", "EC Zone C", "MZ", "ส่วนกลาง"], ["2FX-M/4", "EC Zone C", "MZ", "ส่วนกลาง"], ["2FX-M/5", "EC Zone C", "MZ", "ส่วนกลาง"], ["2FX-M/6", "EC Zone C", "MZ", "ส่วนกลาง"], ["1-M-FX-HA01", "PC", "MZ", "หน้าบันได 2"], ["1-M-FX-HA02", "PC", "MZ", "โถงการเงิน"], ["1-M-FX-HA03", "PC", "MZ", "แผนกสังเกตูอาการ"], ["1FX-2/1", "PC", "2", "หน้าห้องขนส่ง"], ["1FX-2/10", "PC", "2", "ห้องสำนักงาน"], ["1FX-2/11", "PC", "2", "หน้าห้องเก็บฟีล์ม"], ["1FX-2/12", "PC", "2", "ห้องประชาสัมพันธ์"], ["1FX-2/13", "PC", "2", "ห้องรองเท้า"], ["1FX-2/14", "PC", "2", "ห้องอ่านฟิล์ม-2"], ["1FX-2/15", "PC", "2", "โถงพักรอ X-Ray"], ["1FX-2/16", "PC", "2", "โถงพักรอ X-Ray"], ["1FX-2/17", "PC", "2", "หน้าห้องตรวจ 3"], ["1FX-2/18", "PC", "2", "หน้าห้องอุปกรณ์ 1"], ["1FX-2/2", "PC", "2", "หน้าห้องไฟฟ้า 1"], ["1FX-2/3", "PC", "2", "ห้อง CT&MRI"], ["1FX-2/4", "PC", "2", "ห้อง CT&MRI"], ["1FX-2/5", "PC", "2", "หน้าห้อง MRI 4"], ["1FX-2/6", "PC", "2", "หน้าห้อง MIR 4"], ["1FX-2/7", "PC", "2", "หน้าห้องไฟฟ้า 2"], ["1FX-2/8", "PC", "2", "ห้องศูนย์วิจัยด้วยภาพ"], ["1FX-2/9", "PC", "2", "หน้าห้องควบคุม"], ["2FX-2/1", "EC Zone C", "2", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-2/2", "EC Zone C", "2", "หน้าห้องประชุมใหญ่"], ["2FX-2/3", "EC Zone C", "2", "ห้องธุรการ"], ["2FX-2/4", "EC Zone C", "2", "หน้าห้องทำงานนักวิจัย 2"], ["2FX-2/5", "EC Zone C", "2", "ส่วนกลาง"], ["2FX-2/6", "EC Zone C", "2", "ส่วนกลาง"], ["2FX-2/7", "EC Zone C", "2", "ส่วนกลาง"], ["2FX-2/8", "EC Zone C", "2", "หน้าห้องไฟฟ้า"], ["1-2-FX-HA01", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA02", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA03", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA04", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA05", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA06", "PC", "2", "ส่วนกลาง"], ["1-2-FX-HA07", "PC", "2", "ส่วนกลาง"], ["1FX-3/1", "PC", "3", "หน้าห้องไฟฟ้า1"], ["1FX-3/10", "PC", "3", "หน้าห้องรับตัวอย่าง"], ["1FX-3/11", "PC", "3", "ห้องปฎิบัติการ-2"], ["1FX-3/12", "PC", "3", "ห้องรองเท้า"], ["1FX-3/13", "PC", "3", "หน้าห้องตรวจ 5"], ["1FX-3/14", "PC", "3", "หน้าห้อง Cell Lab"], ["1FX-3/15", "PC", "3", "ห้องเวชศาสตร์ชันสูตร"], ["1FX-3/16", "PC", "3", "ส่วนกลาง"], ["1FX-3/17", "PC", "3", "ส่วนกลาง"], ["1FX-3/18", "PC", "3", "ส่วนกลาง"], ["1FX-3/19", "PC", "3", "หน้าห้องทำงานอาจารย์"], ["1FX-3/2", "PC", "3", "ห้องศูนย์คอมพิวเตอร์"], ["1FX-3/20", "PC", "3", "ส่วนกลาง"], ["1FX-3/21", "PC", "3", "ส่วนกลาง"], ["1FX-3/22", "PC", "3", "ส่วนกลาง"], ["1FX-3/23", "PC", "3", "ส่วนกลาง"], ["1FX-3/24", "PC", "3", "ส่วนกลาง"], ["1FX-3/25", "PC", "3", "ส่วนกลาง"], ["1FX-3/26", "PC", "3", "ส่วนกลาง"], ["1FX-3/27", "PC", "3", "ส่วนกลาง"], ["1FX-3/28", "PC", "3", "ส่วนกลาง"], ["1FX-3/3", "PC", "3", "ห้องปฎิบัติการ-1"], ["1FX-3/4", "PC", "3", "หน้าห้องปฎิบัติการ-2"], ["1FX-3/5", "PC", "3", "โถงพักรอ"], ["1FX-3/6", "PC", "3", "หน้าห้องล้างเครื่องมือ"], ["1FX-3/7", "PC", "3", "หน้าห้องไฟฟ้า 2"], ["1FX-3/8", "PC", "3", "โถงพักรอห้องตรวจ"], ["2FX-3/1", "EC Zone C", "3", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-3/10", "EC Zone C", "3", "หน้าห้องไฟฟ้า"], ["2FX-3/2", "EC Zone C", "3", "หน้าห้องเก็บของ 3"], ["2FX-3/3", "EC Zone C", "3", "Advanced Coagulate Lab"], ["2FX-3/4", "EC Zone C", "3", "Thalassemia Lab"], ["2FX-3/5", "EC Zone C", "3", "หน้าห้อง AIR LOCK"], ["2FX-3/6", "EC Zone C", "3", "หน้าห้องไฟฟ้า"], ["2FX-3/7", "EC Zone C", "3", "ส่วนกลาง"], ["2FX-3/8", "EC Zone C", "3", "ส่วนกลาง"], ["2FX-3/9", "EC Zone C", "3", "หน้าห้อง AIR LOCK"], ["1-03-FX-HA01", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA02", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA03", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA04", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA05", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA06", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA07", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA08", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA09", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA10", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA11", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA12", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA13", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA14", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA15", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA16", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA17", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA18", "PC", "3", "ส่วนกลาง"], ["1-03-FX-HA19", "PC", "3", "ส่วนกลาง"], ["2-03-FX-HA01", "EC Zone C", "3", "ส่วนกลาง"], ["2-03-FX-HA02", "EC Zone C", "3", "ส่วนกลาง"], ["2-03-FX-HA03", "EC Zone C", "3", "ส่วนกลาง"], ["2-03-FX-HA04", "EC Zone C", "3", "ส่วนกลาง"], ["1FX-4/1", "PC", "4", "ส่วนกลาง"], ["1FX-4/10", "PC", "4", "ส่วนกลาง"], ["1FX-4/11", "PC", "4", "ส่วนกลาง"], ["1FX-4/12", "PC", "4", "ส่วนกลาง"], ["1FX-4/13", "PC", "4", "ส่วนกลาง"], ["1FX-4/14", "PC", "4", "ส่วนกลาง"], ["1FX-4/2", "PC", "4", "ส่วนกลาง"], ["1FX-4/3", "PC", "4", "ส่วนกลาง"], ["1FX-4/4", "PC", "4", "ส่วนกลาง"], ["1FX-4/5", "PC", "4", "ส่วนกลาง"], ["1FX-4/6", "PC", "4", "ส่วนกลาง"], ["1FX-4/7", "PC", "4", "ส่วนกลาง"], ["1FX-4/8", "PC", "4", "ส่วนกลาง"], ["1FX-4/9", "PC", "4", "ส่วนกลาง"], ["2FX-4/1", "EC Zone C", "4", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-4/10", "EC Zone C", "4", "หน้าห้อง SPECIAL TEST"], ["2FX-4/11", "EC Zone C", "4", "ห้องติดต่อ"], ["2FX-4/2", "EC Zone C", "4", "หน้าห้องหัวหน้าศูนย์"], ["2FX-4/3", "EC Zone C", "4", "ห้องปฎิบัติการ-P2"], ["2FX-4/4", "EC Zone C", "4", "Endrocrine Research Lab"], ["2FX-4/5", "EC Zone C", "4", "Advanced Hormone Lab"], ["2FX-4/6", "EC Zone C", "4", "หน้าห้อง SPECIAL TEST"], ["2FX-4/7", "EC Zone C", "4", "หน้าห้องไฟฟ้า"], ["2FX-4/8", "EC Zone C", "4", "ห้องติดต่อ"], ["2FX-4/9", "EC Zone C", "4", "Advanced Hormone Lab"], ["1-04-FX-HA01", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA02", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA03", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA04", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA05", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA06", "PC", "4", "ส่วนกลาง"], ["1-04-FX-HA07", "PC", "4", "ส่วนกลาง"], ["1FX-5/1", "PC", "5", "ส่วนกลาง"], ["1FX-5/10", "PC", "5", "ส่วนกลาง"], ["1FX-5/11", "PC", "5", "ส่วนกลาง"], ["1FX-5/12", "PC", "5", "ส่วนกลาง"], ["1FX-5/2", "PC", "5", "ส่วนกลาง"], ["1FX-5/3", "PC", "5", "ส่วนกลาง"], ["1FX-5/4", "PC", "5", "ส่วนกลาง"], ["1FX-5/5", "PC", "5", "ส่วนกลาง"], ["1FX-5/6", "PC", "5", "ส่วนกลาง"], ["1FX-5/7", "PC", "5", "ส่วนกลาง"], ["1FX-5/8", "PC", "5", "ส่วนกลาง"], ["1FX-5/9", "PC", "5", "ส่วนกลาง"], ["2FX-5/1", "EC Zone C", "5", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-5/10", "EC Zone C", "5", "ส่วนกลาง"], ["2FX-5/11", "EC Zone C", "5", "ส่วนกลาง"], ["2FX-5/2", "EC Zone C", "5", "ห้องปฎิบัติการ"], ["2FX-5/3", "EC Zone C", "5", "หน้าห้องเปลี่ยนเสื้อผ้าหญิง"], ["2FX-5/4", "EC Zone C", "5", "หน้าห้องเตรียม 3"], ["2FX-5/5", "EC Zone C", "5", "หน้าห้องเก็บ/อ่าน SLIDE"], ["2FX-5/6", "EC Zone C", "5", "หน้าห้องธุรการ"], ["2FX-5/8", "EC Zone C", "5", "หน้าห้องไฟฟ้า"], ["2FX-5/9", "EC Zone C", "5", "หน้าห้องธุรการ"], ["2-05-FX-HA01", "EC Zone C", "5", "หน้าห้องตัดย้อมชิ้นเนื้อ"], ["2-05-FX-HA02", "EC Zone C", "5", "หน้าห้องควบคุมไฟฟ้า"], ["1FX-6/1", "PC", "6", "หน้าห้องไฟฟ้า 1"], ["1FX-6/10", "PC", "6", "ส่วนกลาง"], ["1FX-6/11", "PC", "6", "ส่วนกลาง"], ["1FX-6/2", "PC", "6", "โถง ICU 2"], ["1FX-6/3", "PC", "6", "ส่วนกลาง"], ["1FX-6/4", "PC", "6", "ส่วนกลาง"], ["1FX-6/5", "PC", "6", "ส่วนกลาง"], ["1FX-6/6", "PC", "6", "ส่วนกลาง"], ["1FX-6/7", "PC", "6", "ส่วนกลาง"], ["1FX-6/8", "PC", "6", "ส่วนกลาง"], ["1FX-6/9", "PC", "6", "ส่วนกลาง"], ["2FX-6/1", "EC Zone C", "6", "โถง ICU 2"], ["2FX-6/2", "EC Zone C", "6", "ห้องรอผ่าตัด"], ["2FX-6/3", "EC Zone C", "6", "ห้องส่วนสนับสนุน"], ["2FX-6/4", "EC Zone C", "6", "หน้าห้องไฟฟ้า 2"], ["2FX-6/5", "EC Zone C", "6", "ส่วนกลาง"], ["2FX-6/6", "EC Zone C", "6", "ส่วนกลาง"], ["2FX-6/7", "EC Zone C", "6", "ส่วนกลาง"], ["2FX-6/8", "EC Zone C", "6", "ส่วนกลาง"], ["1-06-FX-HA01", "PC", "6", "หน้าทางเข้าเปลี่ยนชุดชาย"], ["1-06-FX-HA02", "PC", "6", "ทางเดิน 3 ตรงข้ามห้องขนส่ง"], ["1-06-FX-HA03", "PC", "6", "ข้างห้อง612"], ["1-06-FX-HA04", "PC", "6", "หน้าห้องพัก/ทำงานแพทย์"], ["1-06-FX-HA05", "PC", "6", "ข้างห้อง609"], ["1-06-FX-HA06", "PC", "6", "ห้องเปลี่ยนเสื้อผ้าหญิง"], ["2-06-FX-HA01", "EC Zone C", "6", "หน้าโถงลิฟท์"], ["2-06-FX-HA02", "EC Zone C", "6", "ข้างบันไดหนีไฟ5"], ["2-06-FX-HA03", "EC Zone C", "6", "ห้องปฎิบัติการยีนโปร"], ["1FX-7/1", "PC", "7", "หน้าห้องไฟฟ้า 1"], ["1FX-7/10", "PC", "7", "ห้องควบคุม"], ["1FX-7/11", "PC", "7", "หน้าห้องพักเจ้าหน้าที่"], ["1FX-7/2", "PC", "7", "โถง ICU 2"], ["1FX-7/3", "PC", "7", "โถง ICU 2"], ["1FX-7/4", "PC", "7", "ห้องรอผ่าตัด"], ["1FX-7/5", "PC", "7", "ห้องส่วนสนับสนุน"], ["1FX-7/6", "PC", "7", "หน้าห้องไฟฟ้า 2"], ["1FX-7/7", "PC", "7", "ห้องเปลี่ยนเสื้อผ้าชาย"], ["1FX-7/8", "PC", "7", "ห้องรองเท้าหญิง"], ["1FX-7/9", "PC", "7", "ห้องควบคุม 1"], ["2FX-7/1", "EC Zone C", "7", "ห้องรองเท้าหญิง"], ["2FX-7/2", "EC Zone C", "7", "ห้องควบคุม 1"], ["2FX-7/3", "EC Zone C", "7", "ส่วนกลาง"], ["2FX-7/4", "EC Zone C", "7", "ส่วนกลาง"], ["2FX-7/5", "EC Zone C", "7", "ส่วนกลาง"], ["2FX-7/6", "EC Zone C", "7", "ส่วนกลาง"], ["2FX-7/7", "EC Zone C", "7", "ส่วนกลาง"], ["2FX-7/8", "EC Zone C", "7", "ส่วนกลาง"], ["1-07-FX-HA01", "PC", "7", "ส่วนกลาง"], ["1-07-FX-HA02", "PC", "7", "ส่วนกลาง"], ["1-07-FX-HA03", "PC", "7", "ส่วนกลาง"], ["1-07-FX-HA04", "PC", "7", "ส่วนกลาง"], ["1-07-FX-HA05", "PC", "7", "ส่วนกลาง"], ["2-07-FX-HA01", "EC Zone C", "7", "ส่วนกลาง"], ["1FX-8/1", "PC", "8", "หน้าห้องไฟฟ้า 1"], ["1FX-8/10", "PC", "8", "ส่วนกลาง"], ["1FX-8/11", "PC", "8", "ส่วนกลาง"], ["1FX-8/12", "PC", "8", "ส่วนกลาง"], ["1FX-8/2", "PC", "8", "ห้องพักคนไข้รวม"], ["1FX-8/3", "PC", "8", "ห้องรอผ่าตัด"], ["1FX-8/4", "PC", "8", "หน้าห้องไฟฟ้า 2"], ["1FX-8/5", "PC", "8", "หน้าห้องผ่าตัด-L1"], ["1FX-8/6", "PC", "8", "หน้าห้องผ่าตัด-M13"], ["1FX-8/7", "PC", "8", "หน้าห้องผ่าตัด-M6"], ["1FX-8/8", "PC", "8", "หน้าห้องสื่อสาร"], ["1FX-8/9", "PC", "8", "ส่วนกลาง"], ["2FX-8/1", "EC Zone C", "8", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-8/10", "EC Zone C", "8", "ห้องปฎิบัติการ-3"], ["2FX-8/11", "EC Zone C", "8", "ห้องปฎิบัติการ-2"], ["2FX-8/2", "EC Zone C", "8", "ห้องปฎิบัติการ"], ["2FX-8/3", "EC Zone C", "8", "ห้องพักรอ"], ["2FX-8/4", "EC Zone C", "8", "ห้องปฎิบัติการ-1"], ["2FX-8/5", "EC Zone C", "8", "ห้องล้างวัตถุดิบ"], ["2FX-8/6", "EC Zone C", "8", "หน้าห้องปฎิบัติการ-5"], ["2FX-8/7", "EC Zone C", "8", "หน้าห้องปฎิบัติการ-1"], ["2FX-8/8", "EC Zone C", "8", "ส่วนกลาง"], ["2FX-8/9", "EC Zone C", "8", "หน้าห้องไฟฟ้า"], ["1-08-FX-HA01", "PC", "8", "ส่วนกลาง"], ["1-08-FX-HA02", "PC", "8", "ส่วนกลาง"], ["1-08-FX-HA03", "PC", "8", "ส่วนกลาง"], ["1-08-FX-HA04", "PC", "8", "ส่วนกลาง"], ["1-08-FX-HA05", "PC", "8", "ส่วนกลาง"], ["1-08-FX-HA06", "PC", "8", "ส่วนกลาง"], ["2-08-FX-HA01", "EC Zone C", "8", "ข้างประตูST6"], ["2-08-FX-HA02", "EC Zone C", "8", "ทางเดิน1"], ["2-08-FX-HA03", "EC Zone C", "8", "ทางเดิน1"], ["2-08-FX-HA04", "EC Zone C", "8", "ทางเดิน1"], ["2-08-FX-HA05", "EC Zone C", "8", "ทางเดิน1"], ["1FX-9/1", "PC", "9", "หน้าห้องไฟฟ้า 1"], ["1FX-9/10", "PC", "9", "ทางเดินห้องคลอดพิเศษ"], ["1FX-9/11", "PC", "9", "ทางเดินห้องผ่าตัด-1"], ["1FX-9/12", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/13", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/14", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/15", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/16", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/17", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/18", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/19", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/2", "PC", "9", "ห้องทำงานพยาบาล"], ["1FX-9/20", "PC", "9", "พื้นที่ส่วนกลาง"], ["1FX-9/3", "PC", "9", "ห้องทำงานพยาบาล"], ["1FX-9/4", "PC", "9", "หน้าห้องแสดง 1"], ["1FX-9/5", "PC", "9", "ห้องรอดูอาการ"], ["1FX-9/6", "PC", "9", "หน้าห้องไฟฟ้า 2"], ["1FX-9/7", "PC", "9", "หน้าห้องสัมภาษณ์ผู้ป่วย"], ["1FX-9/8", "PC", "9", "หน้าห้องเตรียมคนไข้"], ["1FX-9/9", "PC", "9", "โถงห้องคลอด"], ["2-9FX-HA-02", "PC", "9", "ส่วนกลาง"], ["2FX-9/1", "EC Zone C", "9", "หน้าห้องพักเจ้าหน้าที่"], ["2FX-9/2", "EC Zone C", "9", "ห้องธุรการ"], ["2FX-9/3", "EC Zone C", "9", "ห้องปฎิบัติการ"], ["2FX-9/4", "EC Zone C", "9", "หน้าห้องทำงานนักวิจัย 5"], ["2FX-9/5", "EC Zone C", "9", "ห้องให้คำปรึกษา-2"], ["2FX-9/6", "EC Zone C", "9", "หน้าห้องไฟฟ้า"], ["2FX-9/7", "EC Zone C", "9", "ส่วนกลาง"], ["2FX-9/8", "EC Zone C", "9", "ส่วนกลาง"], ["2FX-9/9", "EC Zone C", "9", "ส่วนกลาง"], ["2FX-HA-01", "EC Zone C", "9", "ส่วนกลาง"], ["2FX-HA-02", "PC", "9", "ส่วนกลาง"], ["HFC230FA", "PC", "9", "ส่วนกลาง"], ["HFC236FA", "PC", "9", "ส่วนกลาง"], ["1-9-FX-HA-01", "PC", "9", "ส่วนกลาง"], ["1-9-FX-HA-02", "PC", "9", "ส่วนกลาง"], ["1-9-FX-HA-03", "PC", "9", "ส่วนกลาง"], ["2-9-FX-HA-01", "EC", "9", "ส่วนกลาง"], ["2-9-FX-HA-02", "EC", "9", "ส่วนกลาง"], ["2-9-FX-HA-03", "EC", "9", "ส่วนกลาง"], ["2-9-FX-HA-04", "EC", "9", "ส่วนกลาง"], ["2-9-FX-HA-05", "EC", "9", "ส่วนกลาง"], ["1FX-10/1", "PC", "10", "หน้าห้องไฟฟ้า 1"], ["1FX-10/10", "PC", "10", "หน้าห้องสื่อสาร"], ["1FX-10/11", "PC", "10", "หน้าห้องน้ำ"], ["1FX-10/12", "PC", "10", "ส่วนกลาง"], ["1FX-10/13", "PC", "10", "ส่วนกลาง"], ["1FX-10/14", "PC", "10", "ส่วนกลาง"], ["1FX-10/15", "PC", "10", "ส่วนกลาง"], ["1FX-10/16", "PC", "10", "ส่วนกลาง"], ["1FX-10/17", "PC", "10", "ส่วนกลาง"], ["1FX-10/18", "PC", "10", "ส่วนกลาง"], ["1FX-10/19", "PC", "10", "ส่วนกลาง"], ["1FX-10/2", "PC", "10", "โถง ICU MED3"], ["1FX-10/20", "PC", "10", "ส่วนกลาง"], ["1FX-10/21", "PC", "10", "ส่วนกลาง"], ["1FX-10/22", "PC", "10", "ส่วนกลาง"], ["1FX-10/23", "PC", "10", "ส่วนกลาง"], ["1FX-10/3", "PC", "10", "โถง ICU MED2"], ["1FX-10/4", "PC", "10", "หน้าห้องไฟฟ้า 2"], ["1FX-10/5", "PC", "10", "โถงพักรอศูนย์ส่องกล้องทางเดินอาหาร"], ["1FX-10/6", "PC", "10", "โถงพักรอศูนย์โรคระบบหายใจ"], ["1FX-10/7", "PC", "10", "โถง ICU MED1"], ["1FX-10/8", "PC", "10", "หน้าห้อง SCOPE 1"], ["1FX-10/9", "PC", "10", "ห้องพักฟื้น "], ["2FX-10/1", "EC Zone C", "10", "หน้าห้องพักอาจารย์"], ["2FX-10/2", "EC Zone C", "10", "ห้องธุรการ"], ["2FX-10/3", "EC Zone C", "10", "ห้องปฎิบัติการพิเศษ"], ["2FX-10/4", "EC Zone C", "10", "ทำงานพยาบาล CHRONIC"], ["2FX-10/5", "EC Zone C", "10", "ทำงานพยาบาล ACUTE"], ["2FX-10/6", "EC Zone C", "10", "หน้าห้องเตรียมยา"], ["2FX-10/7", "EC Zone C", "10", "Nephrology Lab"], ["1-09-FX-HA01", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA02", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA03", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA04", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA05", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA06", "EC Zone B", "10", "Nephrology Lab"], ["1-09-FX-HA07", "EC Zone B", "10", "Nephrology Lab"], ["1FX-11/1", "PC", "11", "ส่วนกลาง"], ["1FX-11/10", "PC", "11", "ส่วนกลาง"], ["1FX-11/11", "PC", "11", "ส่วนกลาง"], ["1FX-11/12", "PC", "11", "ส่วนกลาง"], ["1FX-11/13", "PC", "11", "ส่วนกลาง"], ["1FX-11/2", "PC", "11", "ส่วนกลาง"], ["1FX-11/3", "PC", "11", "ส่วนกลาง"], ["1FX-11/4", "PC", "11", "ส่วนกลาง"], ["1FX-11/5", "PC", "11", "ส่วนกลาง"], ["1FX-11/6", "PC", "11", "ส่วนกลาง"], ["1FX-11/7", "PC", "11", "ส่วนกลาง"], ["1FX-11/8", "PC", "11", "ส่วนกลาง"], ["1FX-11/9", "PC", "11", "ส่วนกลาง"], ["2FX-11/1", "EC Zone C", "11", "ส่วนกลาง"], ["2FX-11/2", "EC Zone C", "11", "ส่วนกลาง"], ["2FX-11/3", "EC Zone C", "11", "ทางเดินหน้าห้องพักคนไข้ 2"], ["2FX-11/4", "EC Zone C", "11", "ทำงานพยาบาล 1"], ["2FX-11/6", "EC Zone C", "11", "ทำงานพยาบาล 2"], ["2FX-11/7", "EC Zone C", "11", "ทำงานพยาบาล 1"], ["2FX-11/8", "EC Zone C", "11", "ทำงานพยาบาล 2"], ["2FX-11/9", "EC Zone C", "11", "หน้าห้องไฟฟ้า"], ["1FX-12/1", "PC", "12", "หน้าห้องไฟฟ้า 1"], ["1FX-12/10", "PC", "12", "ห้องเรียน 120 คน"], ["1FX-12/11", "PC", "12", "ส่วนกลาง"], ["1FX-12/12", "PC", "12", "ส่วนกลาง"], ["1FX-12/13", "PC", "12", "ส่วนกลาง"], ["1FX-12/14", "PC", "12", "ส่วนกลาง"], ["1FX-12/15", "PC", "12", "ส่วนกลาง"], ["1FX-12/16", "PC", "12", "ส่วนกลาง"], ["1FX-12/17", "PC", "12", "ส่วนกลาง"], ["1FX-12/18", "PC", "12", "ส่วนกลาง"], ["1FX-12/19", "PC", "12", "ส่วนกลาง"], ["1FX-12/2", "PC", "12", "ห้องเรียน 200 คน"], ["1FX-12/20", "PC", "12", "ส่วนกลาง"], ["1FX-12/21", "PC", "12", "ส่วนกลาง"], ["1FX-12/3", "PC", "12", "หน้าห้องไฟฟ้า 2"], ["1FX-12/4", "PC", "12", "ห้องเรียน 60 คน 4"], ["1FX-12/5", "PC", "12", "ห้องเรียน 100 คน"], ["1FX-12/6", "PC", "12", "ห้องเรียน 60 คน 5"], ["1FX-12/7", "PC", "12", "ห้องเรียน 60 คน 6"], ["1FX-12/8", "PC", "12", "ห้องเรียน 120 คน"], ["1FX-12/9", "PC", "12", "ห้องเรียน 60 คน 7"], ["2FX-12/1", "EC Zone C", "12", "หน้าห้องแม่บ้าน"], ["2FX-12/10", "EC Zone C", "12", "ส่วนกลาง"], ["2FX-12/11", "EC Zone C", "12", "ส่วนกลาง"], ["2FX-12/2", "EC Zone C", "12", "หน้าห้องควบคุมระบบเสียง"], ["2FX-12/3", "EC Zone C", "12", "ห้องเรียน 120 คน"], ["2FX-12/4", "EC Zone C", "12", "ห้องเรียน 120 คน"], ["2FX-12/5", "EC Zone C", "12", "ห้อง TELECONFERENCE"], ["2FX-12/6", "EC Zone C", "12", "หน้าห้องประชุม-32คน"], ["2FX-12/7", "EC Zone C", "12", "หน้าห้องเรียน 60คน 3"], ["2FX-12/8", "EC Zone C", "12", "หน้าห้องไฟฟ้า"], ["2FX-12/9", "EC Zone C", "12", "ส่วนกลาง"], ["1FX-13/1", "PC", "13", "ห้องเอนกประสงค์-2"], ["1FX-13/10", "PC", "13", "ห้องอาหารเจ้าหน้าที่"], ["1FX-13/11", "PC", "13", "ห้องเรียน 350-400 คน"], ["1FX-13/12", "PC", "13", "ทางเดินจุดจ่ายอาหาร"], ["1FX-13/2", "PC", "13", "หน้าห้องไฟฟ้า 1"], ["1FX-13/3", "PC", "13", "ห้องเอนกประสงค์-1"], ["1FX-13/4", "PC", "13", "หน้าห้องไฟฟ้า 2"], ["1FX-13/5", "PC", "13", "ห้องเตรียมอาหาร 2"], ["1FX-13/6", "PC", "13", "ห้องเตรียมอาหาร 2"], ["1FX-13/7", "PC", "13", "ห้องเรียน 350-400 คน"], ["1FX-13/8", "PC", "13", "ทางเดินจุดจ่ายอาหาร"], ["1FX-13/9", "PC", "13", "ห้องอาหารเจ้าหน้าที่"], ["2FX-13/1", "EC Zone C", "13", "หน้าห้องแม่บ้าน"], ["2FX-13/10", "EC Zone C", "13", "ส่วนกลาง"], ["2FX-13/2", "EC Zone C", "13", "หน้าห้องประชุม-15คน 1"], ["2FX-13/3", "EC Zone C", "13", "หน้าห้องเรียน 60คน 2"], ["2FX-13/4", "EC Zone C", "13", "หน้าห้องเรียน 200คน"], ["2FX-13/5", "EC Zone C", "13", "หน้าห้องประชุม-32คน"], ["2FX-13/6", "EC Zone C", "13", "ห้องเรียน 200 คน"], ["2FX-13/7", "EC Zone C", "13", "หน้าห้องไฟฟ้า"], ["2FX-13/8", "EC Zone C", "13", "ส่วนกลาง"], ["1FX-14/1", "PC", "14", "หน้าห้องร้านค้า 1"], ["1FX-14/10", "PC", "14", "หน้าห้องอาหาร"], ["1FX-14/11", "PC", "14", "ร้านอาหาร 1"], ["1FX-14/2", "PC", "14", "หน้าห้องกิจกรรม 2"], ["1FX-14/3", "PC", "14", "หน้าบันได 4"], ["1FX-14/4", "PC", "14", "โถงลิฟท์ดับเพลิง"], ["1FX-14/5", "PC", "14", "หน้าห้องอาหาร"], ["1FX-14/6", "PC", "14", "หน้าบันได 14"], ["1FX-14/7", "PC", "14", "หน้าบันได 3"], ["1FX-14/8", "PC", "14", "ห้องเตรียมอาหาร"], ["1FX-14/9", "PC", "14", "ร้านอาหาร"], ["2FX-14/1", "EC Zone C", "14", "ส่วนกลาง"], ["2FX-14/2", "EC Zone C", "14", "ส่วนกลาง"], ["2FX-14/3", "EC Zone C", "14", "ส่วนกลาง"], ["2FX-14/4", "EC Zone C", "14", "ส่วนกลาง"], ["2FX-14/5", "EC Zone C", "14", "ส่วนกลาง"], ["2FX-14/6", "EC Zone C", "14", "ส่วนกลาง"], ["2-14-FX-HA01", "EC Zone C", "14", "ส่วนกลาง"], ["2-14-FX-HA02", "EC Zone C", "14", "ส่วนกลาง"], ["2-14-FX-HA03", "EC Zone C", "14", "ส่วนกลาง"], ["2-14-FX-HA04", "EC Zone C", "14", "ส่วนกลาง"], ["1FX-15/1", "PC Zone D", "15", "ส่วนกลาง"], ["1FX-15/2", "PC Zone D", "15", "ห้องประชุม"], ["1FX-15/3", "PC Zone B", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1FX-15/4", "PC Zone B", "15", "ห้องประชุม"], ["1FX-15/5", "PC Zone D", "15", "ห้องสำนักงานแพทย์-2"], ["1FX-15/6", "PC Zone A", "15", "ห้องสำนักงานแพทย์-3"], ["1FX-15/7", "PC Zone A", "15", "ห้องสำนักงานแพทย์-1"], ["1FX-15/8", "PC Zone B", "15", "หน้าห้องไฟฟ้า 2"], ["1FX-15/9", "PC Zone D", "15", "ห้องเตรียมอาหาร"], ["1FX-15/10", "PC Zone D", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA01", "PC Zone B", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA02", "PC Zone B", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA03", "PC Zone B", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA04", "PC Zone A", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA05", "PC Zone A", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1-15FX-HA06", "PC Zone D", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2-15FX-HA01", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2-15FX-HA02", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2FX-15/1", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2FX-15/2", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2FX-15/3", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2FX-15/4", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["2FX-15/5", "PC Zone C", "15", "โถงผู้ป่วย หู คอ จมูก"], ["1FX-16/1", "PC Zone D", "16", "หน้าห้องคนไข้ 4 เตียง ( ห้อง 4 )"], ["1FX-16/2", "PC Zone D", "16", "หน้าห้องไฟฟ้า 1"], ["1FX-16/3", "PC Zone B", "16", "โถงพักคนไข้ 1"], ["1FX-16/4", "PC Zone B", "16", "หน้าห้องพิเศษคู่ 4"], ["1FX-16/5", "PC Zone D", "16", "โถงพักคนไข้ 3"], ["1FX-16/6", "PC Zone A", "16", "หน้าห้องไฟฟ้า 2"], ["1FX-16/7", "PC Zone A", "16", "ห้องเตรียมอาหาร"], ["1FX-16/8", "PC Zone D", "16", "ส่วนกลาง"], ["1FX-16/9", "PC Zone D", "16", "ทางเดินห้องพักเตียงเปล"], ["2FX-16/1", "EC Zone C", "16", "ส่วนกลาง"], ["2FX-16/2", "EC Zone C", "16", "ห้องเครื่องลิฟท์"], ["2FX-16/3", "EC Zone C", "16", "ห้องเครื่องลิฟท์"], ["2FX-16/4", "EC Zone C", "16", "หน้าห้องไฟฟ้า 1"], ["2FX-16/5", "EC Zone C", "16", "ห้องประชุม"], ["1-16-FX-HA02", "EC Zone C", "16", "ส่วนกลาง"], ["1-16-FX-HA03", "EC Zone C", "16", "ส่วนกลาง"], ["1-16-FX-HA04", "EC Zone C", "16", "ส่วนกลาง"], ["1-16-FX-HA01", "EC Zone C", "16", "ส่วนกลาง"], ["2-16-FX-HA01", "EC Zone C", "16", "ส่วนกลาง"], ["2-16-FX-HA02", "EC Zone C", "16", "ส่วนกลาง"], ["1FX-17/1", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/2", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/3", "PC Zone B", "17", "ส่วนกลาง"], ["1FX-17/4", "PC Zone B", "17", "ส่วนกลาง"], ["1FX-17/5", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/6", "PC Zone A", "17", "ส่วนกลาง"], ["1FX-17/7", "PC Zone A", "17", "ส่วนกลาง"], ["1FX-17/8", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/9", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/10", "PC Zone D", "17", "ส่วนกลาง"], ["1FX-17/11", "PC Zone B", "17", "ส่วนกลาง"], ["1FX-17/12", "PC Zone B", "17", "ส่วนกลาง"], ["1FX-17/13", "PC Zone A", "17", "ส่วนกลาง"], ["1FX-17/14", "PC Zone A", "17", "ส่วนกลาง"], ["1FX-17/15", "PC Zone D", "17", "ส่วนกลาง"], ["1-17-FX-HA01", "PC Zone B", "17", "ส่วนกลาง"], ["1-17-FX-HA02", "PC Zone B", "17", "ส่วนกลาง"], ["1-17-FX-HA03", "PC Zone A", "17", "ส่วนกลาง"], ["1-17-FX-HA04", "PC Zone A", "17", "ส่วนกลาง"], ["2FX-17/1", "EC Zone C", "17", "ส่วนกลาง"], ["2FX-17/2", "EC Zone C", "17", "ส่วนกลาง"], ["2FX-17/3", "EC Zone C", "17", "ส่วนกลาง"], ["2FX-17/4", "EC Zone C", "17", "ส่วนกลาง"], ["2FX-17/5", "EC Zone C", "17", "ส่วนกลาง"], ["2-17-FX-HA01", "EC Zone C", "17", "ส่วนกลาง"], ["2-17-FX-HA02", "EC Zone C", "17", "ส่วนกลาง"], ["1FX-18/1", "PC", "18", "หน้าห้องไฟฟ้า 1"], ["1FX-18/2", "PC", "18", "โถงพักคนไข้ 1"], ["1FX-18/3", "PC", "18", "หน้าห้องพิเศษคู่ 4"], ["1FX-18/4", "PC", "18", "โถงพักคนไข้ 3"], ["1FX-18/5", "PC", "18", "หน้าห้องไฟฟ้า 2"], ["1FX-18/6", "PC", "18", "ห้องเตรียมอาหาร"], ["1FX-18/7", "PC", "18", "ทางเดินห้องพักเตียงเปล"], ["1FX-18/8", "PC", "18", "ทางเดินหน้าห้องพักคนไข้ 3"], ["1FX-18/9", "PC", "18", "ทางเดินหน้าห้องพักคนไข้ 2"], ["2FX-18/1", "EC Zone C", "18", "ส่วนกลาง"], ["2FX-18/2", "EC Zone C", "18", "ส่วนกลาง"], ["2FX-18/3", "EC Zone C", "18", "หน้าห้องไฟฟ้า"], ["2FX-18/4", "EC Zone C", "18", "หน้าห้องไฟฟ้า"], ["2FX-18/5", "EC Zone C", "18", "หน้าห้องไฟฟ้า"], ["1-18-FX-HA01", "PC", "18", "หน้าห้องไฟฟ้า"], ["1-18-FX-HA02", "PC", "18", "หน้าห้องไฟฟ้า"], ["1-18-FX-HA03", "PC", "18", "หน้าห้องไฟฟ้า"], ["1-18-FX-HA04", "PC", "18", "หน้าห้องไฟฟ้า"], ["2-18-FX-HA01", "EC Zone C", "18", "หน้าห้องไฟฟ้า"], ["2-18-FX-HA02", "EC Zone C", "18", "หน้าห้องไฟฟ้า"], ["1FX-19/1", "PC", "19", "หน้าห้องไฟฟ้า 1"], ["1FX-19/10", "PC", "19", "ทางเดินหน้าห้องพักคนไข้ 2"], ["1FX-19/11", "PC", "19", "ทางเดินหน้าห้องพักคนไข้ 2"], ["1FX-19/2", "PC", "19", "โถงพักคนไข้ 1"], ["1FX-19/3", "PC", "19", "หน้าห้องพิเศษคู่ 4"], ["1FX-19/4", "PC", "19", "โถงพักคนไข้ 3"], ["1FX-19/5", "PC", "19", "หน้าห้องไฟฟ้า 2"], ["1FX-19/6", "PC", "19", "ห้องเตรียมอาหาร"], ["1FX-19/7", "PC", "19", "ทางเดินห้องพักเตียงเปล"], ["1FX-19/8", "PC", "19", "ทางเดินหน้าห้องพักคนไข้ 3"], ["1FX-19/9", "PC", "19", "ทางเดินหน้าห้องพักคนไข้ 2"], ["2FX-19/1", "EC Zone C", "19", "ทำงานพยาบาล 1"], ["2FX-19/2", "EC Zone C", "19", "ทำงานพยาบาล 2"], ["2FX-19/3", "EC Zone C", "19", "หน้าห้องไฟฟ้า"], ["2FX-19/4", "EC Zone C", "19", "ส่วนกลาง"], ["2FX-19/5", "EC Zone C", "19", "ส่วนกลาง"], ["1-19-FX-HA01", "EC Zone B", "19", "ส่วนกลาง"], ["1-19-FX-HA02", "EC Zone B", "19", "ส่วนกลาง"], ["1-19-FX-HA03", "EC Zone A", "19", "ส่วนกลาง"], ["1-19-FX-HA04", "EC Zone A", "19", "ส่วนกลาง"], ["2-19-FX-HA01", "EC Zone C", "19", "ส่วนกลาง"], ["2-19-FX-HA02", "EC Zone C", "19", "ส่วนกลาง"], ["1FX-20/1", "PC", "20", "หน้าห้องไฟฟ้า 1"], ["1FX-20/10", "PC", "20", "ส่วนกลาง"], ["1FX-20/11", "PC", "20", "ส่วนกลาง"], ["1FX-20/12", "PC", "20", "ส่วนกลาง"], ["1FX-20/13", "PC", "20", "ส่วนกลาง"], ["1FX-20/14", "PC", "20", "ส่วนกลาง"], ["1FX-20/15", "PC", "20", "ส่วนกลาง"], ["1FX-20/2", "PC", "20", "หน้าห้องพิเศษ 9"], ["1FX-20/3", "PC", "20", "หน้าห้องพิเศษ 15"], ["1FX-20/4", "PC", "20", "หน้าห้องไฟฟ้า 2"], ["1FX-20/5", "PC", "20", "ห้องเตรียมอาหาร"], ["1FX-20/6", "PC", "20", "ทางเดินห้องพักเตียงเปล"], ["1FX-20/7", "PC", "20", "ทางเดินหน้าห้องพักคนไข้ 3"], ["1FX-20/8", "PC", "20", "ทางเดินหน้าห้องพักคนไข้ 2"], ["1FX-20/9", "PC", "20", "ทางเดินส่วนกลาง"], ["2FX-20/1", "EC Zone C", "20", "ทำงานพยาบาล 1"], ["2FX-20/2", "EC Zone C", "20", "ทำงานพยาบาล 2"], ["2FX-20/3", "EC Zone C", "20", "หน้าห้องไฟฟ้า"], ["2FX-20/4", "EC Zone C", "20", "ส่วนกลาง"], ["2FX-20/5", "EC Zone C", "20", "ส่วนกลาง"], ["1-20-FX-HA01", "PC", "20", "ส่วนกลาง"], ["1-20-FX-HA02", "PC", "20", "ส่วนกลาง"], ["1-20-FX-HA03", "PC", "20", "ส่วนกลาง"], ["1-20-FX-HA04", "PC", "20", "ส่วนกลาง"], ["1-20-FX-HA05", "PC", "20", "ส่วนกลาง"], ["2-20-FX-HA01", "EC Zone C", "20", "ส่วนกลาง"], ["2-20-FX-HA02", "EC Zone C", "20", "ส่วนกลาง"], ["1FX-21/1", "PC", "21", "หน้าห้องไฟฟ้า 1"], ["1FX-21/2", "PC", "21", "หน้าห้องพิเศษ 9"], ["1FX-21/3", "PC", "21", "หน้าห้องพิเศษ 15"], ["1FX-21/4", "PC", "21", "หน้าห้องไฟฟ้า 2"], ["1FX-21/5", "PC", "21", "ห้องเตรียมอาหาร"], ["1FX-21/6", "PC", "21", "หน้าห้องพิเศษ 17"], ["1FX-21/7", "PC", "21", "ห้องพักพิเศษ-6"], ["1FX-21/8", "PC", "21", "หน้าห้องเตรียมอาหาร"], ["1FX-21/9", "PC", "21", "ส่วนกลาง"], ["2FX-21/1", "EC Zone C", "21", "ทำงานพยาบาล"], ["2FX-21/2", "EC Zone C", "21", "ทำงานพยาบาล"], ["2FX-21/3", "EC Zone C", "21", "หน้าห้องพิเศษ 1"], ["2FX-21/4", "EC Zone C", "21", "หน้าห้องไฟฟ้า"], ["2FX-21/5", "EC Zone C", "21", "ส่วนกลาง"], ["2FX-21/6", "EC Zone C", "21", "ส่วนกลาง"], ["1-21-FX-HA01", "PC", "21", "ส่วนกลาง"], ["1-21-FX-HA02", "PC", "21", "ส่วนกลาง"], ["1-21-FX-HA03", "PC", "21", "ส่วนกลาง"], ["1-21-FX-HA04", "PC", "21", "ส่วนกลาง"], ["2-21-FX-HA01", "EC Zone C", "21", "ส่วนกลาง"], ["2-21-FX-HA02", "EC Zone C", "21", "ส่วนกลาง"], ["1FX-22/1", "PC Zone D", "22", "ส่วนกลาง"], ["1FX-22/2", "PC Zone D", "22", "ส่วนกลาง"], ["1FX-22/3", "PC Zone B", "22", "ส่วนกลาง"], ["1FX-22/4", "PC Zone B", "22", "ส่วนกลาง"], ["1FX-22/5", "PC Zone D", "22", "ส่วนกลาง"], ["1FX-22/6", "PC Zone A", "22", "ส่วนกลาง"], ["1FX-22/7", "PC Zone A", "22", "ส่วนกลาง"], ["1FX-22/8", "PC Zone D", "22", "ส่วนกลาง"], ["1FX-22/9", "PC Zone D", "22", "ส่วนกลาง"], ["2FX-22/1", "EC Zone C", "22", "ส่วนกลาง"], ["2FX-22/2", "EC Zone C", "22", "ส่วนกลาง"], ["2FX-22/3", "EC Zone C", "22", "ส่วนกลาง"], ["2FX-22/4", "EC Zone C", "22", "ส่วนกลาง"], ["2FX-22/5", "EC Zone C", "22", "ส่วนกลาง"], ["2FX-22/6", "EC Zone C", "22", "ส่วนกลาง"], ["1-22-FX-HA01", "PC Zone B", "22", "ส่วนกลาง"], ["1-22-FX-HA02", "PC Zone B", "22", "ส่วนกลาง"], ["1-22-FX-HA03", "PC Zone A", "22", "ส่วนกลาง"], ["1-22-FX-HA04", "PC Zone A", "22", "ส่วนกลาง"], ["1-22-FX-HA05", "PC Zone D", "22", "ส่วนกลาง"], ["1-22-FX-HA06", "PC Zone B", "22", "Nursery"], ["1-22-FX-HA07", "PC Zone B", "22", "Nursery"], ["2-22-FX-HA01", "EC Zone C", "22", "ส่วนกลาง"], ["2-22-FX-HA02", "EC Zone C", "22", "ส่วนกลาง"], ["1FX-23/1", "PC", "23", "ส่วนกลาง"], ["1FX-23/2", "PC", "23", "ส่วนกลาง"], ["1FX-23/3", "PC", "23", "ส่วนกลาง"], ["1FX-23/4", "PC", "23", "ส่วนกลาง"], ["1FX-23/5", "PC", "23", "ส่วนกลาง"], ["1FX-23/6", "PC", "23", "ส่วนกลาง"], ["1FX-23/7", "PC", "23", "ส่วนกลาง"], ["1FX-23/8", "PC", "23", "ส่วนกลาง"], ["1FX-23/9", "PC", "23", "ส่วนกลาง"], ["2FX-23/1", "EC Zone C", "23", "ส่วนกลาง"], ["2FX-23/2", "EC Zone C", "23", "ส่วนกลาง"], ["2FX-23/3", "EC Zone C", "23", "ส่วนกลาง"], ["2FX-23/4", "EC Zone C", "23", "ส่วนกลาง"], ["2FX-23/5", "EC Zone C", "23", "ส่วนกลาง"], ["2FX-23/6", "EC Zone C", "23", "ส่วนกลาง"], ["1-23-FX-01", "PC Zone B", "23", "ส่วนกลาง"], ["1-23-FX-02", "PC Zone B", "23", "ส่วนกลาง"], ["1-23-FX-03", "PC Zone A", "23", "ส่วนกลาง"], ["1-23-FX-04", "PC Zone A", "23", "ส่วนกลาง"], ["2-23-FX-01", "EC Zone C", "23", "ส่วนกลาง"], ["2-23-FX-02", "EC Zone C", "23", "ส่วนกลาง"], ["1FX-24/1", "PC", "24", "ส่วนกลาง"], ["1FX-24/2", "PC", "24", "ส่วนกลาง"], ["1FX-24/3", "PC", "24", "ส่วนกลาง"], ["1FX-24/4", "PC", "24", "ส่วนกลาง"], ["1FX-24/5", "PC", "24", "ส่วนกลาง"], ["1FX-24/6", "PC", "24", "ส่วนกลาง"], ["1FX-24/7", "PC", "24", "ส่วนกลาง"], ["1FX-24/8", "PC", "24", "ส่วนกลาง"], ["1FX-24/9", "PC", "24", "ส่วนกลาง"], ["2FX-24/1", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/2", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/3", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/4", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/5", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/6", "EC Zone C", "24", "ส่วนกลาง"], ["2FX-24/7", "EC Zone C", "24", "ส่วนกลาง"], ["1-24-FX-HA01", "EC Zone B", "24", "ส่วนกลาง"], ["1-24-FX-HA02", "EC Zone B", "24", "ส่วนกลาง"], ["1-24-FX-HA03", "EC Zone A", "24", "ส่วนกลาง"], ["1-24-FX-HA04", "EC Zone A", "24", "ส่วนกลาง"], ["2-24-FX-HA01", "EC Zone C", "24", "ส่วนกลาง"], ["2-24-FX-HA02", "EC Zone C", "24", "ส่วนกลาง"], ["1FX-25/1", "PC", "25", "ส่วนกลาง"], ["1FX-25/10", "PC", "25", "ส่วนกลาง"], ["1FX-25/11", "PC", "25", "ส่วนกลาง"], ["1FX-25/12", "PC", "25", "ส่วนกลาง"], ["1FX-25/13", "PC", "25", "ส่วนกลาง"], ["1FX-25/14", "PC", "25", "ส่วนกลาง"], ["1FX-25/15", "PC", "25", "ส่วนกลาง"], ["1FX-25/16", "PC", "25", "ส่วนกลาง"], ["1FX-25/17", "PC", "25", "ส่วนกลาง"], ["1FX-25/18", "PC", "25", "ส่วนกลาง"], ["1FX-25/2", "PC", "25", "ส่วนกลาง"], ["1FX-25/3", "PC", "25", "ส่วนกลาง"], ["1FX-25/4", "PC", "25", "ส่วนกลาง"], ["1FX-25/5", "PC", "25", "ส่วนกลาง"], ["1FX-25/6", "PC", "25", "ส่วนกลาง"], ["1FX-25/7", "PC", "25", "ส่วนกลาง"], ["1FX-25/8", "PC", "25", "ส่วนกลาง"], ["1FX-25/9", "PC", "25", "ส่วนกลาง"], ["2FX-25/1", "EC Zone C", "25", "ส่วนกลาง"], ["2FX-25/2", "EC Zone C", "25", "ส่วนกลาง"], ["2FX-25/3", "EC Zone C", "25", "ส่วนกลาง"], ["2FX-25/4", "EC Zone C", "25", "ส่วนกลาง"], ["2FX-25/5", "EC Zone C", "25", "ส่วนกลาง"], ["2FX-25/6", "EC Zone C", "25", "ส่วนกลาง"], ["1-25-FX-HA01", "EC Zone B", "25", "ส่วนกลาง"], ["1-25-FX-HA02", "EC Zone B", "25", "ส่วนกลาง"], ["1-25-FX-HA03", "EC Zone A", "25", "ส่วนกลาง"], ["1-25-FX-HA04", "EC Zone A", "25", "ส่วนกลาง"], ["2-25-FX-HA01", "EC Zone C", "25", "ส่วนกลาง"], ["2-25-FX-HA02", "EC Zone C", "25", "ส่วนกลาง"], ["1FX-26/1", "PC", "26", "หน้าห้องไฟฟ้า 1"], ["1FX-26/10", "PC", "26", "ส่วนกลาง"], ["1FX-26/11", "PC", "26", "ส่วนกลาง"], ["1FX-26/12", "PC", "26", "ส่วนกลาง"], ["1FX-26/13", "PC", "26", "ส่วนกลาง"], ["1FX-26/14", "PC", "26", "ส่วนกลาง"], ["1FX-26/15", "PC", "26", "ส่วนกลาง"], ["1FX-26/16", "PC", "26", "ส่วนกลาง"], ["1FX-26/17", "PC", "26", "ส่วนกลาง"], ["1FX-26/18", "PC", "26", "ส่วนกลาง"], ["1FX-26/19", "PC", "26", "ส่วนกลาง"], ["1FX-26/2", "PC", "26", "หน้าห้องพิเศษ 9"], ["1FX-26/20", "PC", "26", "ส่วนกลาง"], ["1FX-26/21", "PC", "26", "ส่วนกลาง"], ["1FX-26/3", "PC", "26", "หน้าห้องพิเศษ 15"], ["1FX-26/4", "PC", "26", "หน้าห้องไฟฟ้า 2"], ["1FX-26/5", "PC", "26", "ห้องเตรียมอาหาร"], ["1FX-26/6", "PC", "26", "หน้าห้องทำงานแพทย์"], ["1FX-26/7", "PC", "26", "ห้องพักพิเศษคู่-6"], ["1FX-26/8", "PC", "26", "หน้าห้องเตรียมอาหาร"], ["1FX-26/9", "PC", "26", "ส่วนกลาง"], ["2FX-26/1", "EC Zone C", "26", "ทำงานพยาบาล"], ["2FX-26/2", "EC Zone C", "26", "หน้าห้องหัตถการ"], ["2FX-26/3", "EC Zone C", "26", "หน้าสำนักงานศูนย์ประสานงาน"], ["2FX-26/4", "EC Zone C", "26", "หน้าห้องไฟฟ้า"], ["2FX-26/5", "EC Zone C", "26", "ส่วนกลาง"], ["2FX-26/6", "EC Zone C", "26", "ส่วนกลาง"], ["1-26-FX-HA01", "PC Zone B", "26", "ส่วนกลาง"], ["1-26-FX-HA02", "PC Zone B", "26", "ส่วนกลาง"], ["1-26-FX-HA03", "PC Zone A", "26", "ส่วนกลาง"], ["1-26-FX-HA04", "PC Zone A", "26", "ส่วนกลาง"], ["2-26-FX-HA01", "EC Zone C", "26", "ส่วนกลาง"], ["2-26-FX-HA02", "EC Zone C", "26", "ส่วนกลาง"], ["1FX-27/1", "PC", "27", "หน้าห้องไฟฟ้า 1"], ["1FX-27/10", "PC", "27", "ส่วนกลาง"], ["1FX-27/2", "PC", "27", "หน้าห้องพิเศษ 9"], ["1FX-27/3", "PC", "27", "หน้าห้องพิเศษ 15"], ["1FX-27/4", "PC", "27", "หน้าห้องไฟฟ้า 2"], ["1FX-27/5", "PC", "27", "ห้องเตรียมอาหาร"], ["1FX-27/6", "PC", "27", "หน้าห้องทำงานแพทย์"], ["1FX-27/7", "PC", "27", "ห้องพักพิเศษคู่-6"], ["1FX-27/8", "PC", "27", "หน้าห้องเตรียมอาหาร"], ["1FX-27/9", "PC", "27", "ส่วนกลาง"], ["2FX-27/1", "EC Zone C", "27", "ทำงานพยาบาล"], ["2FX-27/2", "EC Zone C", "27", "ทำงานพยาบาล"], ["2FX-27/3", "EC Zone C", "27", "หน้าห้องควบคุม 1"], ["2FX-27/4", "EC Zone C", "27", "หน้าห้องไฟฟ้า"], ["2FX-27/5", "EC Zone C", "27", "ส่วนกลาง"], ["2FX-27/6", "EC Zone C", "27", "ส่วนกลาง"], ["1-27-FX-HA01", "PC Zone B", "27", "ส่วนกลาง"], ["1-27-FX-HA02", "PC Zone B", "27", "ส่วนกลาง"], ["1-27-FX-HA03", "PC Zone A", "27", "ส่วนกลาง"], ["1-27-FX-HA04", "PC Zone A", "27", "ส่วนกลาง"], ["2-27-FX-HA01", "EC Zone C", "27", "ส่วนกลาง"], ["2-27-FX-HA02", "EC Zone C", "27", "ส่วนกลาง"], ["1FX-28/1", "PC", "28", "หน้าห้องไฟฟ้า 1"], ["1FX-28/10", "PC", "28", "ส่วนกลาง"], ["1FX-28/2", "PC", "28", "หน้าห้องพิเศษ 9"], ["1FX-28/3", "PC", "28", "หน้าห้องพิเศษ 15"], ["1FX-28/4", "PC", "28", "หน้าห้องไฟฟ้า 2"], ["1FX-28/5", "PC", "28", "ห้องเตรียมอาหาร"], ["1FX-28/6", "PC", "28", "หน้าห้องทำงานแพทย์"], ["1FX-28/7", "PC", "28", "ห้องพักพิเศษคู่-6"], ["1FX-28/8", "PC", "28", "หน้าห้องเตรียมอาหาร"], ["1FX-28/9", "PC", "28", "ส่วนกลาง"], ["2FX-28/1", "EC Zone C", "28", "ทำงานพยาบาล"], ["2FX-28/10", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/11", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/2", "EC Zone C", "28", "หน้าห้องหัตถการ"], ["2FX-28/3", "EC Zone C", "28", "หน้าสำนักงานศูนย์ประสานงาน"], ["2FX-28/4", "EC Zone C", "28", "หน้าห้องไฟฟ้า"], ["2FX-28/5", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/6", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/7", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/8", "EC Zone C", "28", "ส่วนกลาง"], ["2FX-28/9", "EC Zone C", "28", "ส่วนกลาง"], ["1-28-FX-HA01", "PC", "28", "ส่วนกลาง"], ["1-28-FX-HA02", "PC", "28", "ส่วนกลาง"], ["2-28-FX-HA01", "EC Zone C", "28", "ส่วนกลาง"], ["2-28-FX-HA02", "EC Zone C", "28", "ส่วนกลาง"], ["1FX-30/1", "PC", "30", "ส่วนกลาง"], ["1FX-30/2", "PC", "30", "ส่วนกลาง"], ["1FX-30/3", "PC", "30", "ส่วนกลาง"], ["1FX-30/4", "PC", "30", "ส่วนกลาง"], ["1FX-30/5", "PC", "30", "ส่วนกลาง"], ["1FX-30/6", "PC", "30", "ส่วนกลาง"], ["2FX-30/1", "EC Zone C", "30", "หน้าห้องไฟฟ้า"], ["2FX-30/2", "EC Zone C", "30", "ส่วนกลาง"], ["2FX-30/3", "EC Zone C", "30", "ส่วนกลาง"], ["2FX-30/4", "EC Zone C", "30", "ส่วนกลาง"], ["2FX-30/5", "EC Zone C", "30", "ส่วนกลาง"], ["2FX-30/6", "EC Zone C", "30", "ส่วนกลาง"], ["2FX-30/7", "EC Zone C", "30", "ส่วนกลาง"], ["1-30-FX-HA01", "PC", "30", "ส่วนกลาง"], ["1-30-FX-HA02", "PC", "30", "ส่วนกลาง"], ["1-30-FX-HA03", "PC", "30", "ส่วนกลาง"], ["2-30-FX-HA01", "EC Zone C", "30", "ส่วนกลาง"], ["2-30-FX-HA02", "EC Zone C", "30", "ส่วนกลาง"], ["2-30-FX-HA03", "EC Zone C", "30", "ส่วนกลาง"], ["1-31-FX-HA01", "PC", "31", "ส่วนกลาง"], ["1-32-FX-HA01", "PC", "31", "ส่วนกลาง"], ["1FX-31/1", "PC", "31", "ส่วนกลาง"], ["1FX-31/2", "PC", "31", "ส่วนกลาง"], ["1FX-31/3", "PC", "31", "ส่วนกลาง"], ["1FX-31/4", "PC", "31", "ส่วนกลาง"], ["1FX-31/5", "PC", "31", "ส่วนกลาง"], ["2FX-31/1", "EC Zone C", "31", "ส่วนกลาง"]];
+const TYPE_INFO = {
+  red:   {label:'สีแดง',  sub:'ผงเคมีแห้ง (Dry Chemical)', hex:'#c8402c', hasGauge:true,  note:'พบได้ทั่วไป ใช้กับเพลิงไหม้ทั่วไป ต้องพลิกถังเป็นระยะป้องกันผงจับตัวเป็นก้อน'},
+  green: {label:'สีเขียว', sub:'สารสะอาด (Clean Agent)',    hex:'#4c8c5b', hasGauge:true,  note:'ไม่ทิ้งคราบ ไม่นำไฟฟ้า เหมาะกับห้อง Server/ไฟฟ้า/เครื่องมือแพทย์'},
+  gray:  {label:'สีเทา',  sub:'คาร์บอนไดออกไซด์ (CO2)',    hex:'#8a8a8a', hasGauge:false, note:'แรงดันสูงมาก ไม่มีเข็มวัดความดัน ต้องตรวจด้วยการชั่งน้ำหนักแทน'},
+};
+
+function tankIconSVG(type, size){
+  size = size || 56;
+  if(!type){
+    return `<svg viewBox="0 0 60 100" width="${size}" height="${size*100/60}">
+      <rect x="15" y="22" width="30" height="62" rx="7" fill="none" stroke="#5a5450" stroke-width="2" stroke-dasharray="4 3"/>
+      <rect x="21" y="9" width="18" height="15" rx="2.5" fill="none" stroke="#5a5450" stroke-width="2" stroke-dasharray="3 2"/>
+      <text x="30" y="60" text-anchor="middle" font-size="20" fill="#5a5450" font-weight="700">?</text>
+    </svg>`;
+  }
+  const t = TYPE_INFO[type] || TYPE_INFO.red;
+  return `<svg viewBox="0 0 60 100" width="${size}" height="${size*100/60}">
+    <path d="M38 15 Q55 13 55 35" stroke="#8a8580" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="55" cy="35" r="4.5" fill="${t.hasGauge?'#333':'#555'}"/>
+    ${!t.hasGauge?'<circle cx="55" cy="35" r="7" fill="none" stroke="#555" stroke-width="1.5"/>':''}
+    <rect x="15" y="22" width="30" height="62" rx="7" fill="${t.hex}" stroke="#00000055" stroke-width="1.5"/>
+    <rect x="21" y="9" width="18" height="15" rx="2.5" fill="#2b2b2b"/>
+    <rect x="24" y="4" width="12" height="7" rx="2" fill="#444"/>
+    ${t.hasGauge?`<circle cx="30" cy="33" r="6.5" fill="#fdfdfa" stroke="#2b2b2b" stroke-width="1.2"/><path d="M30 33 L33 29" stroke="#c8402c" stroke-width="1.2"/>`:''}
+    <rect x="19" y="60" width="22" height="9" rx="1.5" fill="#fdfdfa" opacity="0.92"/>
+  </svg>`;
+}
+
+function getChecklistQuestions(type){
+  const q = [];
+  if(type==='gray'){
+    q.push({key:'weight', text:'ชั่งน้ำหนักถัง เทียบกับน้ำหนักที่ระบุบนถัง ไม่ลดลงเกิน 10% (ถังนี้ไม่มีเข็มวัดความดัน)'});
+  } else {
+    q.push({key:'gauge', text:'เข็มมาตรวัดความดัน อยู่ในโซนสีเขียว (ใช้งานได้)'});
+  }
+  q.push({key:'pin', text:'สลักนิรภัยและตราปั๊ม (Safety Pin/Seal) อยู่ในสภาพสมบูรณ์'});
+  q.push({key:'hose', text: type==='gray' ? 'ฮอร์น/หัวฉีด ไม่แตกร้าว ไม่มีน้ำแข็งเกาะ' : 'สายฉีด/หัวฉีด ไม่อุดตัน ไม่แตกร้าว'});
+  if(type==='red'){
+    q.push({key:'invert', text:'พลิกถังกลับหัว-กลับหาง เพื่อป้องกันผงเคมีจับตัวเป็นก้อน'});
+  }
+  q.push({key:'body', text:'สภาพตัวถัง ไม่มีสนิม ไม่บุบ ไม่รั่วซึม'});
+  q.push({key:'tag', text:'มีป้ายบันทึกการตรวจสอบติดอยู่'});
+  q.push({key:'access', text:'ตำแหน่งติดตั้ง มองเห็นชัดเจน ไม่มีสิ่งกีดขวางทางเข้าถึง'});
+  return q;
+}
+const OPT_LABELS = {ok:'ปกติ', warn:'เฝ้าระวัง', bad:'ต้องซ่อม/เปลี่ยน'};
+
+// วาง Web App URL ที่ได้จากการ Deploy Code.gs (ดูวิธีใน 2_Code.gs) ตรงนี้
+// ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx.../exec'
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxPFA6PIOt2-zmAdUo4GmnJ_xk6HvipUXk9HLBKzqDL3VrijluBSJZAfgAI116OjpsYiA/exec';
+
+let records = {};   // id -> {status, lastChecked, inspector, note, type, checklist, photos:[thumbURL...]}
+let currentFilter = 'all';
+let currentItem = null;
+let draftChecklist = {};
+let draftPhotos = [];
+let draftType = null;
+
+function monthKey(d){ return d.getFullYear()+'-'+(d.getMonth()+1); }
+function fmtDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})+' '+
+         d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+
+function computeDisplayStatus(rec){
+  if(!rec || !rec.lastChecked) return 'pending';
+  const now = new Date(), last = new Date(rec.lastChecked);
+  if(monthKey(now) !== monthKey(last)) return 'bad'; // overdue - not checked this month
+  return rec.status || 'ok';
+}
+
+async function loadRecords(){
+  try{
+    const res = await window.storage.get('fex-records', true);
+    records = res ? JSON.parse(res.value) : {};
+  }catch(e){ records = {}; }
+  await syncFromSheet();
+}
+async function saveRecords(){
+  try{ await window.storage.set('fex-records', JSON.stringify(records), true); }
+  catch(e){ console.error('save failed', e); }
+}
+
+// ดึงสถานะล่าสุดจาก Google Sheet (FEX_LOG) มา merge ทับของ local เพื่อ sync ข้ามเครื่อง/ข้ามคน
+async function syncFromSheet(){
+  if(!GOOGLE_SCRIPT_URL) return;
+  try{
+    const res = await fetch(GOOGLE_SCRIPT_URL);
+    const data = await res.json();
+    if(data.result==='success' && data.records){
+      Object.keys(data.records).forEach(id=>{
+        const r = data.records[id];
+        if(!records[id]) records[id] = {history:[]};
+        // ใช้ข้อมูลจาก Sheet ถ้าใหม่กว่าหรือ local ยังไม่มี
+        const localTime = records[id].lastChecked ? new Date(records[id].lastChecked).getTime() : 0;
+        const sheetTime = r.lastChecked ? new Date(r.lastChecked).getTime() : 0;
+        if(sheetTime >= localTime){
+          records[id].status = r.status;
+          records[id].lastChecked = r.lastChecked;
+          records[id].inspector = r.inspector;
+          records[id].note = r.note;
+          if(r.type) records[id].type = r.type;
+        }
+      });
+      saveRecords();
+    }
+  }catch(e){ console.warn('sync from sheet failed', e); }
+}
+
+// ส่งผลตรวจ PM ไปบันทึกที่ Google Sheet (FEX_LOG) ผ่าน Web App
+async function postToSheet(payload){
+  if(!GOOGLE_SCRIPT_URL) return;
+  try{
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+  }catch(e){ console.warn('post to sheet failed', e); }
+}
+
+function buildFilterOptions(){
+  const buildings = [...new Set(FEX_DATA.map(d=>d[1]))].sort();
+  const bSel = document.getElementById('buildingFilter');
+  buildings.forEach(b=>{
+    const o = document.createElement('option'); o.value=b; o.textContent=b; bSel.appendChild(o);
+  });
+  const floorOrder = ['B4','B3','B2','B1','MZ','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31'];
+  const floors = [...new Set(FEX_DATA.map(d=>d[2]))].sort((a,b)=>floorOrder.indexOf(a)-floorOrder.indexOf(b));
+  const fSel = document.getElementById('floorFilter');
+  floors.forEach(f=>{
+    const o = document.createElement('option'); o.value=f; o.textContent='ชั้น '+f; fSel.appendChild(o);
+  });
+}
+
+function renderSummary(){
+  const counts = {total:FEX_DATA.length, ok:0, warn:0, bad:0, pending:0};
+  FEX_DATA.forEach(d=>{
+    const rec = records[d[0]];
+    const st = computeDisplayStatus(rec);
+    counts[st] = (counts[st]||0)+1;
+  });
+  const cards = [
+    {key:'all', cls:'total', num:counts.total, lbl:'ถังดับเพลิงทั้งหมด'},
+    {key:'ok', cls:'ok', num:counts.ok, lbl:'ปกติ เดือนนี้'},
+    {key:'warn', cls:'warn', num:counts.warn, lbl:'เฝ้าระวัง'},
+    {key:'bad', cls:'bad', num:counts.bad, lbl:'ต้องซ่อม / เกินกำหนด'},
+    {key:'pending', cls:'pending', num:counts.pending, lbl:'ยังไม่ตรวจ'},
+  ];
+  document.getElementById('summary').innerHTML = cards.map(c=>
+    `<div class="stat ${c.cls} ${currentFilter===c.key?'active':''}" data-filter="${c.key}">
+       <div class="num">${c.num}</div><div class="lbl">${c.lbl}</div>
+     </div>`).join('');
+  document.querySelectorAll('.stat').forEach(el=>{
+    el.addEventListener('click',()=>{ currentFilter = el.dataset.filter; renderSummary(); renderGrid(); });
+  });
+}
+
+function renderGrid(){
+  const search = document.getElementById('searchBox').value.trim().toLowerCase();
+  const building = document.getElementById('buildingFilter').value;
+  const floor = document.getElementById('floorFilter').value;
+  const grid = document.getElementById('grid');
+  let html = '';
+  let shown = 0;
+  FEX_DATA.forEach(d=>{
+    const [id, bld, fl, loc] = d;
+    if(building && bld!==building) return;
+    if(floor && fl!==floor) return;
+    if(search && !(id.toLowerCase().includes(search) || loc.toLowerCase().includes(search))) return;
+    const rec = records[id];
+    const st = computeDisplayStatus(rec);
+    if(currentFilter!=='all' && st!==currentFilter) return;
+    shown++;
+    const dateStr = rec && rec.lastChecked ? fmtDate(rec.lastChecked) : 'ยังไม่ตรวจ';
+    html += `<button class="card status-${st}" data-id="${id.replace(/"/g,'&quot;')}">
+        <div class="cardRow">
+          <div class="cicon">${tankIconSVG(rec&&rec.type, 30)}</div>
+          <div class="cinfo">
+            <div class="cid">${id}</div>
+            <div class="cloc">${bld} · ชั้น ${fl} · ${loc}</div>
+          </div>
+        </div>
+        <div class="cmeta"><span class="cdate">${dateStr}</span><span class="dot status-${st}"></span></div>
+      </button>`;
+  });
+  grid.innerHTML = html;
+  document.getElementById('emptyMsg').style.display = shown===0 ? 'block' : 'none';
+  grid.querySelectorAll('.card').forEach(el=>{
+    el.addEventListener('click', ()=> openModal(el.dataset.id));
+  });
+}
+
+function findItem(id){ return FEX_DATA.find(d=>d[0]===id); }
+
+function compressImage(file){
+  return new Promise((resolve)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const maxW = 480;
+        const scale = Math.min(1, maxW/img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width*scale; canvas.height = img.height*scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        resolve(canvas.toDataURL('image/jpeg',0.55));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openModal(id){
+  const item = findItem(id);
+  if(!item) return;
+  currentItem = item;
+  draftChecklist = {};
+  draftPhotos = [];
+  const rec = records[id];
+  draftType = rec && rec.type ? rec.type : null;
+  const history = rec && rec.history ? rec.history.slice().reverse() : [];
+
+  const modal = document.getElementById('modalContent');
+  modal.innerHTML = `
+    <button class="mclose" id="btnClose">&times;</button>
+    <h2>${item[0]}</h2>
+    <p class="mloc">${item[1]} · ชั้น ${item[2]} · ${item[3]}</p>
+
+    <div class="section-title">ประเภทถัง (สี)</div>
+    <div class="type-row" id="typeRow"></div>
+    <div id="typeNoteWrap"></div>
+
+    <div class="section-title">รายการตรวจเช็ค PM</div>
+    <div id="checklistWrap"></div>
+
+    <div class="section-title">รูปถ่ายหน้างาน</div>
+    <div class="photo-row" id="photoRow"></div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+
+    <div class="section-title">ผู้ตรวจ / หมายเหตุ</div>
+    <div class="field"><label>ชื่อผู้ตรวจ</label><input type="text" id="inspectorInput" value="${rec&&rec.inspector?rec.inspector:''}" placeholder="ชื่อ-นามสกุล"></div>
+    <div class="field"><label>หมายเหตุเพิ่มเติม</label><textarea id="noteInput" rows="2" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea></div>
+
+    <button class="submit-btn" id="btnSubmit">บันทึกผลตรวจ PM</button>
+
+    ${history.length ? `<div class="section-title">ประวัติการตรวจล่าสุด</div>
+      <div class="history">${history.slice(0,5).map(h=>`
+        <div class="hitem">
+          <div class="htop"><span>${OPT_LABELS[h.status]||h.status}</span><span>${fmtDate(h.date)}</span></div>
+          <div>${(TYPE_INFO[h.type]?TYPE_INFO[h.type].label+' · ':'')}${h.inspector||''} ${h.note?'· '+h.note:''}</div>
+        </div>`).join('')}</div>` : ''}
+  `;
+
+  renderTypeRow();
+  renderChecklistSection();
+
+  renderPhotoRow();
+  document.getElementById('photoRow').addEventListener('click', (e)=>{
+    if(e.target.classList.contains('rm')){
+      const idx = +e.target.dataset.idx;
+      draftPhotos.splice(idx,1);
+      renderPhotoRow();
+    } else if(e.target.closest('.photo-add')){
+      document.getElementById('photoInput').click();
+    }
+  });
+  document.getElementById('photoInput').addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const dataUrl = await compressImage(file);
+    draftPhotos.push(dataUrl);
+    renderPhotoRow();
+    e.target.value = '';
+  });
+
+  document.getElementById('btnClose').addEventListener('click', closeModal);
+  document.getElementById('btnSubmit').addEventListener('click', submitPM);
+  document.getElementById('overlay').classList.add('show');
+}
+
+function renderTypeRow(){
+  const row = document.getElementById('typeRow');
+  row.innerHTML = Object.keys(TYPE_INFO).map(t=>{
+    const info = TYPE_INFO[t];
+    return `<div class="type-card ${draftType===t?'sel':''}" data-type="${t}">
+        <div class="ticon">${tankIconSVG(t, 40)}</div>
+        <div class="tlabel">${info.label}</div>
+        <div class="tsub">${info.sub}</div>
+      </div>`;
+  }).join('');
+  row.querySelectorAll('.type-card').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      draftType = el.dataset.type;
+      draftChecklist = {};
+      const id = currentItem[0];
+      if(!records[id]) records[id] = {history:[]};
+      records[id].type = draftType;
+      saveRecords();
+      renderTypeRow();
+      renderChecklistSection();
+      renderGrid();
+    });
+  });
+  const noteWrap = document.getElementById('typeNoteWrap');
+  noteWrap.innerHTML = draftType ? `<div class="type-note">${TYPE_INFO[draftType].note}</div>` : '';
+}
+
+function renderChecklistSection(){
+  const wrap = document.getElementById('checklistWrap');
+  wrap.innerHTML = '';
+  if(!draftType){
+    wrap.innerHTML = '<div class="type-placeholder">เลือกประเภทถัง (สี) ก่อน เพื่อแสดงรายการตรวจที่ตรงกับถังใบนี้</div>';
+    return;
+  }
+  getChecklistQuestions(draftType).forEach((q,i)=>{
+    const div = document.createElement('div');
+    div.className = 'checklist-item';
+    div.innerHTML = `<div class="qtext">${i+1}. ${q.text}</div>
+      <div class="opts" data-key="${q.key}">
+        <div class="opt" data-val="ok">${OPT_LABELS.ok}</div>
+        <div class="opt" data-val="warn">${OPT_LABELS.warn}</div>
+        <div class="opt" data-val="bad">${OPT_LABELS.bad}</div>
+      </div>`;
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('.opts').forEach(optsEl=>{
+    optsEl.querySelectorAll('.opt').forEach(optEl=>{
+      optEl.addEventListener('click',()=>{
+        const key = optsEl.dataset.key, val = optEl.dataset.val;
+        draftChecklist[key] = val;
+        optsEl.querySelectorAll('.opt').forEach(o=>o.className='opt');
+        optEl.classList.add('sel-'+val);
+      });
+    });
+  });
+}
+
+function renderPhotoRow(){
+  const row = document.getElementById('photoRow');
+  let html = draftPhotos.map((p,i)=>`
+    <div class="photo-thumb"><img src="${p}"><button class="rm" data-idx="${i}">&times;</button></div>`).join('');
+  if(draftPhotos.length < 4){
+    html += `<div class="photo-add">+</div>`;
+  }
+  row.innerHTML = html;
+}
+
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  currentItem = null;
+}
+
+async function submitPM(){
+  if(!draftType){
+    showToast('กรุณาเลือกประเภทถัง (สี) ก่อนครับ');
+    return;
+  }
+  const questions = getChecklistQuestions(draftType);
+  const answered = questions.every(q=>draftChecklist[q.key]);
+  if(!answered){
+    showToast('กรุณาตอบคำถามให้ครบทุกข้อ');
+    return;
+  }
+  const vals = Object.values(draftChecklist);
+  let overall = 'ok';
+  if(vals.includes('bad')) overall = 'bad';
+  else if(vals.includes('warn')) overall = 'warn';
+
+  const inspector = document.getElementById('inspectorInput').value.trim();
+  const note = document.getElementById('noteInput').value.trim();
+  const id = currentItem[0];
+  const now = new Date().toISOString();
+  const checklistSummary = questions.map(q=>`${q.text.split('(')[0].trim()}: ${OPT_LABELS[draftChecklist[q.key]]}`).join(' | ');
+
+  if(!records[id]) records[id] = {history:[]};
+  if(!records[id].history) records[id].history = [];
+  records[id].history.push({date:now, status:overall, inspector, note, type:draftType, checklist:{...draftChecklist}});
+  records[id].status = overall;
+  records[id].lastChecked = now;
+  records[id].inspector = inspector;
+  records[id].note = note;
+  records[id].type = draftType;
+
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try{
+    if(draftPhotos.length){
+      await window.storage.set('fex-photo-'+id, JSON.stringify(draftPhotos), true);
+    }
+    await saveRecords();
+    postToSheet({
+      id, building: currentItem[1], floor: currentItem[2], location: currentItem[3],
+      type: draftType, typeLabel: TYPE_INFO[draftType].label + ' (' + TYPE_INFO[draftType].sub + ')',
+      date: now, inspector, status: overall, checklistSummary,
+      note, photos: draftPhotos
+    });
+    showToast('บันทึกผลตรวจสำเร็จ');
+    closeModal();
+    renderSummary();
+    renderGrid();
+  }catch(e){
+    showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
+    btn.disabled=false; btn.textContent='บันทึกผลตรวจ PM';
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+document.getElementById('overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='overlay') closeModal();
+});
+document.getElementById('searchBox').addEventListener('input', renderGrid);
+document.getElementById('buildingFilter').addEventListener('change', renderGrid);
+document.getElementById('floorFilter').addEventListener('change', renderGrid);
+
+// ─── QR Code Scanner (กล้องมือถือ) ─────────────────────────
+let scanStream = null;
+let scanRAF = null;
+
+async function openScanner(){
+  const overlay = document.getElementById('scanOverlay');
+  const hint = document.getElementById('scanHint');
+  overlay.classList.add('show');
+  hint.textContent = 'เล็งกล้องไปที่ QR Code บนถังดับเพลิง';
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('scanVideo');
+    video.srcObject = scanStream;
+    await video.play();
+    scanLoop();
+  }catch(e){
+    hint.textContent = 'ไม่สามารถเข้าถึงกล้องได้ ตรวจสอบสิทธิ์การใช้กล้องของเบราว์เซอร์';
+  }
+}
+
+function scanLoop(){
+  const video = document.getElementById('scanVideo');
+  const canvas = document.getElementById('scanCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  function tick(){
+    if(video.readyState === video.HAVE_ENOUGH_DATA && typeof jsQR !== 'undefined'){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if(code && code.data){
+        handleScanResult(code.data);
+        return; // หยุด loop เมื่อพบ QR แล้ว
+      }
+    }
+    scanRAF = requestAnimationFrame(tick);
+  }
+  scanRAF = requestAnimationFrame(tick);
+}
+
+function handleScanResult(text){
+  let id = null;
+  try{
+    const url = new URL(text);
+    id = url.searchParams.get('id');
+  }catch(e){
+    // ไม่ใช่ URL เต็ม อาจเป็นแค่เลขอุปกรณ์ตรงๆ หรือมี ?id= อยู่ในสตริง
+    const m = text.match(/id=([^&]+)/);
+    id = m ? decodeURIComponent(m[1]) : text.trim();
+  }
+  closeScanner();
+  if(id && findItem(id)){
+    openModal(id);
+  }else{
+    showToast('ไม่พบถังดับเพลิงเลขที่ "'+id+'" ในระบบ');
+  }
+}
+
+function closeScanner(){
+  document.getElementById('scanOverlay').classList.remove('show');
+  if(scanRAF) cancelAnimationFrame(scanRAF);
+  if(scanStream){
+    scanStream.getTracks().forEach(t=>t.stop());
+    scanStream = null;
+  }
+}
+
+document.getElementById('btnScan').addEventListener('click', openScanner);
+document.getElementById('btnScanClose').addEventListener('click', closeScanner);
+
+async function init(){
+  buildFilterOptions();
+  await loadRecords();
+  renderSummary();
+  renderGrid();
+
+  // เปิดฟอร์มตรวจอัตโนมัติถ้าเข้ามาจาก QR Code (URL มี ?id=เลขอุปกรณ์)
+  const params = new URLSearchParams(window.location.search);
+  const qrId = params.get('id');
+  if(qrId){
+    const item = findItem(qrId);
+    if(item){
+      openModal(qrId);
+    } else {
+      showToast('ไม่พบถังดับเพลิงเลขที่ "'+qrId+'" ในระบบ');
+    }
+  }
+}
+init();
+</script>
+</body>
+</html>
