@@ -462,13 +462,13 @@ function computeDisplayStatus(rec){
 
 async function loadRecords(){
   try{
-    const res = await window.storage.get('fex-records', true);
-    records = res ? JSON.parse(res.value) : {};
+    const raw = localStorage.getItem('fex-records');
+    records = raw ? JSON.parse(raw) : {};
   }catch(e){ records = {}; }
   await syncFromSheet();
 }
 async function saveRecords(){
-  try{ await window.storage.set('fex-records', JSON.stringify(records), true); }
+  try{ localStorage.setItem('fex-records', JSON.stringify(records)); }
   catch(e){ console.error('save failed', e); }
 }
 
@@ -779,7 +779,8 @@ async function submitPM(){
   btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
   try{
     if(draftPhotos.length){
-      await window.storage.set('fex-photo-'+id, JSON.stringify(draftPhotos), true);
+      try{ localStorage.setItem('fex-photo-'+id, JSON.stringify(draftPhotos)); }
+      catch(e){ console.warn('save photo locally failed (พื้นที่อาจเต็ม), จะยัง sync ขึ้น Sheet ตามปกติ', e); }
     }
     await saveRecords();
     postToSheet({
